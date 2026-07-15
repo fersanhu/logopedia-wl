@@ -311,13 +311,16 @@ let CFG_CACHE = null;  // configuración cargada desde Supabase (tabla settings)
 
 /* Backend Supabase — proyecto DEDICADO de Logopedia (separado de GMAO).
    Patrón GMAO: clave anon + cuenta Auth de servicio compartida (RLS "authenticated"). */
-const SB_URL  = 'https://hxjirgyobwwoydzdnemy.supabase.co';
-const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4amlyZ3lvYnd3b3lkemRuZW15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNTc3MTgsImV4cCI6MjA5OTYzMzcxOH0.AqVoTV69_RssiRWTT113aiOmGYt9v8w1NEjRbFec4es';
+// Credenciales por defecto (instancia DEMO). En despliegue multi-cliente se sobrescriben
+// en tiempo de ejecución según el subdominio (ver resolveTenant()). La anon key es pública.
+let SB_URL  = 'https://hxjirgyobwwoydzdnemy.supabase.co';
+let SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4amlyZ3lvYnd3b3lkemRuZW15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNTc3MTgsImV4cCI6MjA5OTYzMzcxOH0.AqVoTV69_RssiRWTT113aiOmGYt9v8w1NEjRbFec4es';
 // White-label: el login pide email + contraseña (usuario de Supabase Auth del profesional)
 // NS único por proyecto Supabase: evita colisión de localStorage entre instancias que
 // comparten origen (p. ej. varias apps en *.github.io). Sin esto, la config/caché de un
 // gabinete se filtra a otro. NO usar un NS fijo compartido.
-const NS = 'logopedia_' + ((SB_URL.match(/\/\/([a-z0-9-]+)\.supabase/)||[])[1] || 'wl');
+function _sbref(u){ return (String(u).match(/\/\/([a-z0-9-]+)\.supabase/)||[])[1] || 'wl'; }
+let NS = 'logopedia_' + _sbref(SB_URL);
 const TABLES  = ['patients','sessions','session_feedback','reports','invoices','files','reminders','intake'];
 let sb = null;
 // Logo del gabinete: lo sube cada cliente; vive en Supabase (tabla files, kind='logo').
@@ -2012,10 +2015,40 @@ Pages.intake = (el)=>{
 };
 
 /* ============================================================
+   MULTI-CLIENTE POR SUBDOMINIO
+   Una sola app en *.tudominio.com. Cada cliente = un subdominio + su Supabase.
+   La app resuelve el inquilino y carga sus credenciales desde t/<cliente>.json
+   (solo {url, key, name}; la anon key es pública). Alta de cliente = crear su
+   Supabase + subir t/<cliente>.json. No hace falta redesplegar la app ni listar
+   a todos los clientes en el código. Para probar sin dominio: ?tenant=<cliente>.
+   ============================================================ */
+async function resolveTenant(){
+  const host=location.hostname;
+  let key=new URLSearchParams(location.search).get('tenant')||'';
+  if(!key){
+    const generic = host==='localhost'||/^\d/.test(host)||host.endsWith('github.io')||host.endsWith('pages.dev');
+    const parts=host.split('.');
+    if(!generic && parts.length>2 && parts[0]!=='www') key=parts[0]; // aracil.tudominio.com -> aracil
+  }
+  if(!key||key==='www') return; // sin subdominio de cliente: usa el fallback (demo)
+  try{
+    const r=await fetch('t/'+encodeURIComponent(key)+'.json',{cache:'no-store'});
+    if(!r.ok) throw new Error('404');
+    const t=await r.json();
+    if(!t.url||!t.key) throw new Error('config incompleta');
+    SB_URL=t.url; SB_KEY=t.key; NS='logopedia_'+_sbref(SB_URL);
+  }catch(e){
+    $('#main').innerHTML='<div class="page" style="text-align:center;padding-top:110px"><div style="font-size:40px">🔒</div><h2 style="margin:8px 0">Instancia no encontrada</h2><p class="muted">No hay ningún gabinete configurado en esta dirección.<br>Revisa el enlace o contacta con soporte.</p></div>';
+    throw new Error('tenant-not-found');
+  }
+}
+
+/* ============================================================
    ARRANQUE
    ============================================================ */
 $('#nav-backdrop').onclick=closeDrawer;
 (async()=>{
+  try{ await resolveTenant(); }catch(e){ return; } // instancia no encontrada → mensaje y paro
   // Modo formulario público para familias (sin login, sin acceso a datos)
   if(/[?&]intake\b/.test(location.search)){ renderIntakeForm(); return; }
   $('#main').innerHTML='<div class="page" style="text-align:center;padding-top:120px;color:var(--text-soft)"><div class="spin dark" style="width:28px;height:28px;margin:0 auto 14px"></div>Conectando…</div>';
