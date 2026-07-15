@@ -307,7 +307,6 @@ function toast(msg,type=''){ const t=document.createElement('div'); t.className=
    localStorage hoy; misma API que facilitará pasar a Supabase.
    store(name) → {all, get, where, insert, update, remove}
    ============================================================ */
-const NS = 'logopedia_os';
 let CFG_CACHE = null;  // configuración cargada desde Supabase (tabla settings)
 
 /* Backend Supabase — proyecto DEDICADO de Logopedia (separado de GMAO).
@@ -315,6 +314,10 @@ let CFG_CACHE = null;  // configuración cargada desde Supabase (tabla settings)
 const SB_URL  = 'https://hxjirgyobwwoydzdnemy.supabase.co';
 const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4amlyZ3lvYnd3b3lkemRuZW15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNTc3MTgsImV4cCI6MjA5OTYzMzcxOH0.AqVoTV69_RssiRWTT113aiOmGYt9v8w1NEjRbFec4es';
 // White-label: el login pide email + contraseña (usuario de Supabase Auth del profesional)
+// NS único por proyecto Supabase: evita colisión de localStorage entre instancias que
+// comparten origen (p. ej. varias apps en *.github.io). Sin esto, la config/caché de un
+// gabinete se filtra a otro. NO usar un NS fijo compartido.
+const NS = 'logopedia_' + ((SB_URL.match(/\/\/([a-z0-9-]+)\.supabase/)||[])[1] || 'wl');
 const TABLES  = ['patients','sessions','session_feedback','reports','invoices','files','reminders','intake'];
 let sb = null;
 // Logo del gabinete: lo sube cada cliente; vive en Supabase (tabla files, kind='logo').
@@ -351,6 +354,7 @@ const DB = (()=>{
     for(const t of TABLES){ try{ fresh[t]=await fetchAll(t); }catch(e){ console.warn('load '+t+':',e.message); fresh[t]=(data[t]||[]); } }
     data=fresh; save(); remote=true;
     try{ const {data:st}=await sb.from('settings').select('data').eq('id','main').maybeSingle(); CFG_CACHE=(st&&st.data)||{}; localStorage.setItem(NS+'_cfg',JSON.stringify(CFG_CACHE)); }catch(e){ console.warn('settings',e); }
+    try{ if(CFG_CACHE&&CFG_CACHE.clinic_name) Config.syncPublic(); }catch(e){ console.warn('syncPublic',e); }
   }
   // Arranque: 'ready' (sesión activa, datos cargados) | 'login' (falta iniciar sesión) | 'offline'
   async function boot(){
@@ -397,7 +401,11 @@ const DEFAULT_CFG = {
 };
 const Config = {
   get(){ if(CFG_CACHE===null){ try{ CFG_CACHE=JSON.parse(localStorage.getItem(NS+'_cfg')||'{}'); }catch{ CFG_CACHE={}; } } return {...DEFAULT_CFG, ...CFG_CACHE}; },
-  set(p){ if(CFG_CACHE===null) CFG_CACHE={}; CFG_CACHE={...CFG_CACHE,...p}; localStorage.setItem(NS+'_cfg',JSON.stringify(CFG_CACHE)); if(sb){ sb.from('settings').upsert({id:'main',data:CFG_CACHE,updated_at:nowISO()}).then(({error})=>{ if(error) toast('Config: '+error.message,'err'); }); } return Config.get(); },
+  set(p){ if(CFG_CACHE===null) CFG_CACHE={}; CFG_CACHE={...CFG_CACHE,...p}; localStorage.setItem(NS+'_cfg',JSON.stringify(CFG_CACHE)); if(sb){ sb.from('settings').upsert({id:'main',data:CFG_CACHE,updated_at:nowISO()}).then(({error})=>{ if(error) toast('Config: '+error.message,'err'); }); Config.syncPublic(); } return Config.get(); },
+  /* Fila pública SANEADA (id='public'): solo marca visible en el formulario de familias
+     (nombre del gabinete, profesional para el consentimiento, logo). NUNCA datos fiscales
+     (NIF, CCC, dirección). Es la única fila que el rol anon puede leer. */
+  syncPublic(){ if(!sb) return; const c=Config.get(); const pub={ clinic_name:c.clinic_name||'', pro_name:c.pro_name||'', logo:(typeof LOGO==='function'?LOGO():'')||'' }; sb.from('settings').upsert({id:'public',data:pub,updated_at:nowISO()}).then(({error})=>{ if(error) console.warn('public',error); }); },
   configured(){ return !!(Config.get().pro_name); },
 };
 
@@ -1839,6 +1847,7 @@ function setupWizard(){
       default_fee:$('#w_fee').value, inv_prefix:$('#w_prefix').value.trim()||String(new Date().getFullYear()).slice(2) });
     saveImg('logo', await readImg($('#w_logo')));
     saveImg('signature', await readImg($('#w_sign')));
+    Config.syncPublic();  // refresca la marca pública ya con el logo subido
     $('#sidebar').style.display=''; $('#bottomnav').style.display=''; toast('¡Gabinete configurado!','ok'); App.navigate('dashboard');
   };
 }
@@ -1897,17 +1906,26 @@ function anamnesisReportHTML(p,data){
   return h;
 }
 
-function renderIntakeForm(){
+async function renderIntakeForm(){
   $('#sidebar').style.display='none'; $('#bottomnav').style.display='none';
   const anon = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
-  const c=Config.get(); const wrap=$('#main');
+  const wrap=$('#main');
+  // La marca del formulario público NO puede salir de localStorage (se comparte por origen y
+  // podría estar contaminada por otra instancia). Se lee una fila pública saneada de Supabase
+  // (settings id='public', solo nombre/logo/profesional). Si no existe o no hay permiso → neutro.
+  let brand={};
+  if(anon){ try{ const {data:pub}=await anon.from('settings').select('data').eq('id','public').maybeSingle(); brand=(pub&&pub.data)||{}; }catch(e){ console.warn('brand',e); } }
+  const bName = brand.clinic_name || '';
+  const brandHTML=(maxw)=> brand.logo
+    ? `<img src="${brand.logo}" alt="${esc(bName||'Logopedia')}" style="max-width:${maxw||220}px;width:82%">`
+    : (bName?`<div style="font-weight:800;font-size:22px;color:var(--accent);letter-spacing:.4px">${esc(bName)}</div>`:'');
   const thanks=()=>{ wrap.innerHTML=`<div style="max-width:520px;margin:12vh auto 0;text-align:center;padding:24px">
-      ${brandImg(260)}
+      ${brandHTML(260)}
       <div class="card" style="margin-top:18px"><div style="font-size:42px;color:var(--green)">✓</div>
       <h2 style="margin:6px 0">¡Gracias!</h2>
       <p class="muted">Hemos recibido la ficha correctamente. Nos pondremos en contacto contigo.</p></div></div>`; };
   wrap.innerHTML=`<div style="max-width:660px;margin:14px auto 0;padding:16px 18px 90px">
-    <div style="text-align:center;margin-bottom:12px">${brandImg(240)}</div>
+    <div style="text-align:center;margin-bottom:12px">${brandHTML(240)}</div>
     <h1 style="font-size:22px;text-align:center">Cuestionario inicial</h1>
     <p class="muted" style="text-align:center;font-size:13px;margin:6px 0 8px">Con el fin de mejorar la atención, responde a estas cuestiones sobre el/la menor. Puedes añadir cualquier aclaración.</p>
     <div class="card">
@@ -1936,11 +1954,11 @@ function renderIntakeForm(){
       </div>
       <label style="display:flex;gap:9px;align-items:flex-start;margin-top:14px;font-size:12.5px">
         <input type="checkbox" id="k_consent" style="margin-top:3px">
-        <span>Consiento el tratamiento de estos datos, incluidos los del menor, por ${esc(c.pro_name||'el/la profesional')} con la finalidad de prestar el servicio de logopedia, conforme al RGPD (Ley Orgánica 3/2018 y Reglamento UE 2016/679). *</span></label>
+        <span>Consiento el tratamiento de estos datos, incluidos los del menor, por ${esc(brand.pro_name||bName||'el/la profesional')} con la finalidad de prestar el servicio de logopedia, conforme al RGPD (Ley Orgánica 3/2018 y Reglamento UE 2016/679). *</span></label>
       <div id="k_err" style="color:var(--red);font-size:12px;min-height:15px;margin-top:8px"></div>
       <button class="btn primary lg" id="k_send" style="width:100%">Enviar ficha</button>
     </div>
-    <div class="muted" style="text-align:center;font-size:11px;margin-top:14px">${esc(c.clinic_name||'')}</div>
+    <div class="muted" style="text-align:center;font-size:11px;margin-top:14px">${esc(bName||'')}</div>
   </div>`;
   $('#k_send',wrap).onclick=async()=>{
     const name=$('#k_name').value.trim(), tutor=$('#k_tutor').value.trim(), phone=$('#k_phone').value.trim();
