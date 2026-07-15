@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#2D4262">
-<title>Logopedia</title>
+<title>Gabinete</title>
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Logopedia">
+<meta name="apple-mobile-web-app-title" content="Gabinete">
 <link rel="apple-touch-icon" href="icon-512.png">
 <link rel="icon" href="icon-512.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -325,7 +325,7 @@ const TABLES  = ['patients','sessions','session_feedback','reports','invoices','
 let sb = null;
 // Logo del gabinete: lo sube cada cliente; vive en Supabase (tabla files, kind='logo').
 function LOGO(){ try{ const f=Files.where(x=>x.kind==='logo'&&!x.patient_id)[0]; return f?f.data:''; }catch{ return ''; } }
-function brandImg(maxw){ const l=LOGO(); const name=(typeof Config!=='undefined'&&Config.get().clinic_name)||'Logopedia'; return l?`<img src="${l}" alt="${esc(name)}" style="max-width:${maxw||220}px;width:82%">`:`<div style="font-weight:800;font-size:22px;color:var(--accent);letter-spacing:.4px">${esc(name)}</div>`; }
+function brandImg(maxw){ const l=LOGO(); const name=(typeof Config!=='undefined'&&Config.get().clinic_name)||'Gabinete'; return l?`<img src="${l}" alt="${esc(name)}" style="max-width:${maxw||220}px;width:82%">`:`<div style="font-weight:800;font-size:22px;color:var(--accent);letter-spacing:.4px">${esc(name)}</div>`; }
 
 const DB = (()=>{
   let data = {}, remote = false;
@@ -396,7 +396,7 @@ const Intake   = DB.store('intake');
    La config vive en Supabase (tabla settings) por instancia. Cada cliente la rellena
    en el asistente de primer arranque. DEFAULT_CFG solo aporta valores neutros. */
 const DEFAULT_CFG = {
-  pro_name:'', pro_lic:'', pro_lic_psi:'', clinic_name:'Logopedia OS',
+  pro_name:'', pro_lic:'', pro_lic_psi:'', clinic_name:'Gabinete',
   nif:'', address:'', phone:'', email:'',
   ccc:'', iva_exencion:'Factura exenta de IVA según art. 20.1 de la Ley 37/1992',
   iva:'0', inv_prefix:String(new Date().getFullYear()).slice(2), inv_seed:1,
@@ -1086,7 +1086,7 @@ Pages.config = (el)=>{
   };
   $('[data-export]',el).onclick=()=>{
     const blob=new Blob([JSON.stringify({data:DB._raw(),cfg:Config.get(),exported:nowISO()},null,2)],{type:'application/json'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`logopedia_backup_${todayISO()}.json`; a.click();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`gabinete_backup_${todayISO()}.json`; a.click();
   };
   $('[data-import]',el).onclick=()=>{
     const inp=document.createElement('input'); inp.type='file'; inp.accept='.json';
@@ -1335,7 +1335,7 @@ function phoneList(p){ return String((p&&p.phone)||'').split(/\s*\/\s*/).map(s=>
 function phonesToStr(arr){ return (arr||[]).filter(x=>x.num&&x.num.trim()).map(x=>(x.label&&x.label.trim())?(x.label.trim()+': '+x.num.trim()):x.num.trim()).join(' / '); }
 function waButtons(p){ return phoneList(p).map(x=>({label:x.label,num:x.num,wa:waNumber(x.num)})).filter(x=>x.wa); }
 // Recordatorio de sesión por WhatsApp (como el envío a familia)
-function reminderMsg(p,s,cfg){ const first=(p.tutor||'').split(/[\/,]/)[0].trim(); const h=s.time?(' a las '+s.time):''; return `Hola${first?' '+first:''}:\n\nTe recordamos la próxima sesión de logopedia de ${p.name||''}: ${fmtDate(s.date)}${h}.\n\n¡Nos vemos! Un saludo,\n${cfg.pro_name||cfg.clinic_name||''}`; }
+function reminderMsg(p,s,cfg){ const first=(p.tutor||'').split(/[\/,]/)[0].trim(); const h=s.time?(' a las '+s.time):''; return `Hola${first?' '+first:''}:\n\nTe recordamos la próxima sesión de ${p.name||''}: ${fmtDate(s.date)}${h}.\n\n¡Nos vemos! Un saludo,\n${cfg.pro_name||cfg.clinic_name||''}`; }
 function sessionReminderModal(sessionId, after){
   const s=Sessions.get(sessionId); if(!s) return;
   const p=Patients.get(s.patient_id)||{}; const cfg=Config.get(); const phones=waButtons(p);
@@ -1353,7 +1353,7 @@ function sessionReminderModal(sessionId, after){
 }
 function defaultFamilyMsg(p,s,fb,cfg){
   const first=(p.tutor||'').split(/[\/,]/)[0].trim();
-  return `Hola${first?' '+first:''}:\n\nHoy ${p.name||''} ha tenido su sesión de logopedia (${fmtDate(s.date)}).${s.objective?' Hemos trabajado: '+s.objective+'.':''}\n\n${fb.summary?fb.summary+'\n\n':''}Cualquier duda, aquí estoy.\nUn saludo,\n${cfg.pro_name||''}`;
+  return `Hola${first?' '+first:''}:\n\nHoy ${p.name||''} ha tenido su sesión (${fmtDate(s.date)}).${s.objective?' Hemos trabajado: '+s.objective+'.':''}\n\n${fb.summary?fb.summary+'\n\n':''}Cualquier duda, aquí estoy.\nUn saludo,\n${cfg.pro_name||''}`;
 }
 function sendToFamilyModal(sessionId, after){
   const s=Sessions.get(sessionId); if(!s) return;
@@ -1375,14 +1375,14 @@ function sendToFamilyModal(sessionId, after){
       $('#sf_ai',bg).onclick=async()=>{
         $('#sf_aist',bg).innerHTML='<span class="spin dark"></span> Redactando...';
         try{
-          const sys='Eres logopeda. Redacta un mensaje BREVE (5-6 líneas máx.), cercano y claro para la familia de un/a menor tras su sesión de logopedia, en español. Evita datos sensibles innecesarios. Saludo con el nombre del tutor si se da, qué se ha trabajado y una pauta para casa si procede. Firma con el nombre del profesional.';
+          const sys='Eres el/la profesional de un gabinete. Redacta un mensaje BREVE (5-6 líneas máx.), cercano y claro para la familia tras la sesión, en español. Evita datos sensibles innecesarios. Saludo con el nombre del tutor si se da, qué se ha trabajado y una pauta para casa si procede. Firma con el nombre del profesional.';
           const user=`Tutor: ${p.tutor||''}. Paciente: ${p.name||''}. Fecha: ${s.date}. Objetivo: ${s.objective||'—'}. Notas/resumen: ${fb.summary||fb.text||s.evolution||'sin notas'}. Profesional: ${cfg.pro_name||''}.`;
           const out=await AI.chat(sys,user); $('#sf_msg',bg).value=out; $('#sf_aist',bg).textContent=AI.enabled()?'✓ Redactado':'(borrador sin IA)';
         }catch(e){ $('#sf_aist',bg).textContent=''; toast(e.message,'err'); }
       };
       $$('[data-wa]',bg).forEach(waBtn=>waBtn.onclick=()=>{ const m=getMsg(); if(!m){toast('El mensaje está vacío','err');return;} window.open('https://wa.me/'+waBtn.dataset.wa+'?text='+encodeURIComponent(m),'_blank'); toast('Abriendo WhatsApp…','ok'); close(); after&&after(); });
       const emBtn=$('[data-email]',bg); if(emBtn) emBtn.onclick=async()=>{ const m=getMsg(); if(!m){toast('El mensaje está vacío','err');return;}
-        const subject='Sesión de logopedia · '+(p.name||''); emBtn.disabled=true; emBtn.textContent='Enviando…';
+        const subject='Sesión · '+(p.name||''); emBtn.disabled=true; emBtn.textContent='Enviando…';
         try{
           if(!sb||!sb.functions) throw new Error('no-fn');
           const {error}=await sb.functions.invoke('send-email',{body:{to:p.email,subject,text:m}}); if(error) throw error;
@@ -1439,7 +1439,7 @@ function feedbackModal(sessionId, after){
         if(!notes){toast('Escribe o dicta notas primero','err');return;}
         $('#fb_genst',bg).innerHTML='<span class="spin dark"></span> Generando...';
         try{
-          const sys='Eres un logopeda clínico. A partir de notas informales redacta un resumen clínico breve y profesional en español con: resumen de la sesión, evolución observada y recomendaciones. Sé conciso y objetivo.';
+          const sys='Eres un/a profesional clínico/a. A partir de notas informales redacta un resumen clínico breve y profesional en español con: resumen de la sesión, evolución observada y recomendaciones. Sé conciso y objetivo.';
           const user=`Paciente: ${p?.name||''} (${p?.diagnosis||'sin diagnóstico'}). Objetivo de la sesión: ${s.objective||'—'}.\nNotas:\n${notes}`;
           const out=await AI.chat(sys,user);
           $('#fb_sum',bg).value=out; $('#fb_genst',bg).textContent=AI.enabled()?'✓ Generado':'(borrador sin IA)';
@@ -1478,7 +1478,7 @@ function reportForm(pre={}){
         const fbs=Feedback.where(f=>f.patient_id===pid);
         $('#rp_st',bg).innerHTML='<span class="spin dark"></span> Analizando historial...';
         try{
-          const sys='Eres un logopeda clínico colegiado. Redacta un informe clínico profesional completo en español, bien estructurado con apartados (Datos del paciente, Motivo, Antecedentes, Evolución, Objetivos trabajados, Resultados, Conclusiones y Recomendaciones). Tono formal y objetivo.';
+          const sys='Eres un/a profesional clínico/a colegiado/a. Redacta un informe clínico profesional completo en español, bien estructurado con apartados (Datos del paciente, Motivo, Antecedentes, Evolución, Objetivos trabajados, Resultados, Conclusiones y Recomendaciones). Tono formal y objetivo.';
           const histo=ses.map(s=>`- ${s.date}: ${s.objective||'sesión'}. ${s.evolution||''}`).join('\n')||'Sin sesiones registradas.';
           const resumenes=fbs.map(f=>f.summary).filter(Boolean).join('\n')||'';
           const user=`Genera un INFORME DE ${REP_TYPES[type].toUpperCase()} para:\nPaciente: ${p.name}${p.birth?` (${age(p.birth)} años)`:''}\nColegio: ${p.school||'—'}\nDiagnóstico: ${p.diagnosis||'—'}\nObservaciones: ${p.notes||'—'}\n\nHistorial de sesiones:\n${histo}\n\nResúmenes clínicos:\n${resumenes}\n\nIndicaciones: ${$('#rp_hint',bg).value||'ninguna'}`;
@@ -1502,7 +1502,7 @@ function viewReport(id){
   modal({ title:r.title||'Informe', wide:true,
     body:`<div id="rep-print" style="font-size:13.5px;line-height:1.7">
         <div style="border-bottom:2px solid var(--text);padding-bottom:10px;margin-bottom:16px">
-          <div style="font-weight:700;font-size:16px">${esc(c.clinic_name||'Gabinete de Logopedia')}</div>
+          <div style="font-weight:700;font-size:16px">${esc(c.clinic_name||'Gabinete')}</div>
           <div class="muted" style="font-size:12px">${esc(c.pro_name||'')}${c.pro_lic?' · Col. '+esc(c.pro_lic):''}${c.phone?' · '+esc(c.phone):''}${c.email?' · '+esc(c.email):''}</div>
         </div>
         <div style="display:flex;justify-content:space-between;margin-bottom:12px"><div><b>${REP_TYPES[r.type]||r.type}</b></div><div class="muted">${fmtDate(r.created_at)}</div></div>
@@ -1553,7 +1553,7 @@ function invoiceForm(inv={}){
   const c=Config.get();
   const pts=Patients.all().sort((a,b)=>a.name.localeCompare(b.name));
   // Compatibilidad: facturas antiguas (qty/price) → una línea
-  let lines = inv.lines ? inv.lines.map(l=>({...l})) : (edit && inv.qty ? [{date:inv.date,desc:inv.concept||'Sesión logopedia',price:inv.price,uds:inv.qty}] : []);
+  let lines = inv.lines ? inv.lines.map(l=>({...l})) : (edit && inv.qty ? [{date:inv.date,desc:inv.concept||'Sesión',price:inv.price,uds:inv.qty}] : []);
   let patientId = inv.patient_id||'';
   modal({ title: edit?'Editar factura':'Nueva factura', wide:true,
     body:`<div class="form-grid">
@@ -1595,7 +1595,7 @@ function invoiceForm(inv={}){
         linesEl.innerHTML = lines.length?`<table class="table"><thead><tr><th>Fecha</th><th>Concepto</th><th>Precio</th><th>Uds</th><th>Total</th><th></th></tr></thead><tbody>${lines.map((l,n)=>`
           <tr>
             <td><input class="inp" style="padding:5px 7px" type="date" data-l="${n}" data-k="date" value="${esc(l.date||'')}"></td>
-            <td><input class="inp" style="padding:5px 7px" data-l="${n}" data-k="desc" value="${esc(l.desc||'Sesión logopedia')}"></td>
+            <td><input class="inp" style="padding:5px 7px" data-l="${n}" data-k="desc" value="${esc(l.desc||'Sesión')}"></td>
             <td><input class="inp" style="padding:5px 7px;width:80px" type="number" step="0.01" data-l="${n}" data-k="price" value="${esc(l.price||'')}"></td>
             <td><input class="inp" style="padding:5px 7px;width:60px" type="number" data-l="${n}" data-k="uds" value="${esc(l.uds||1)}"></td>
             <td style="white-space:nowrap"><b>${eur(invLineTotal(l))}</b></td>
@@ -1611,7 +1611,7 @@ function invoiceForm(inv={}){
       $('#i_ret',bg).onchange=recalc; $('#i_retpct',bg).oninput=recalc;
       $('#i_pt',bg).onchange=syncClient;
       syncClient();
-      $('#i_addman',bg).onclick=()=>{ const p=Patients.get($('#i_pt',bg).value); lines.push({date:todayISO(),desc:'Sesión logopedia',price:p?.fee||c.default_fee||'',uds:1}); renderLines(); };
+      $('#i_addman',bg).onclick=()=>{ const p=Patients.get($('#i_pt',bg).value); lines.push({date:todayISO(),desc:'Sesión',price:p?.fee||c.default_fee||'',uds:1}); renderLines(); };
       $('#i_addses',bg).onclick=()=>{
         const pid=$('#i_pt',bg).value; if(!pid){toast('Selecciona primero el paciente','err');return;}
         const p=Patients.get(pid);
@@ -1620,10 +1620,10 @@ function invoiceForm(inv={}){
         if(!ses.length){toast('No hay sesiones realizadas pendientes de facturar','err');return;}
         modal({ title:'Sesiones de '+p.name, body:`<div class="muted" style="margin-bottom:10px">Marca las sesiones a incluir:</div>
           <div class="card" style="padding:6px;max-height:50vh;overflow:auto"><table class="table"><tbody>${ses.map(s=>`
-            <tr><td><input type="checkbox" data-s="${s.id}" checked></td><td>${fmtDate(s.date)}</td><td>${esc(s.objective||'Sesión logopedia')}</td><td>${s.amount?eur(s.amount):eur(p.fee||c.default_fee||0)}</td></tr>`).join('')}</tbody></table></div>`,
+            <tr><td><input type="checkbox" data-s="${s.id}" checked></td><td>${fmtDate(s.date)}</td><td>${esc(s.objective||'Sesión')}</td><td>${s.amount?eur(s.amount):eur(p.fee||c.default_fee||0)}</td></tr>`).join('')}</tbody></table></div>`,
           foot:`<button class="btn" data-close>Cancelar</button><button class="btn primary" data-add>Añadir seleccionadas</button>`,
           onMount:(bg2,close2)=>{ $('[data-add]',bg2).onclick=()=>{
-            $$('[data-s]:checked',bg2).forEach(ch=>{ const sx=Sessions.get(ch.dataset.s); lines.push({session_id:sx.id,date:sx.date,desc:sx.objective||'Sesión logopedia',price:sx.amount||p.fee||c.default_fee||'',uds:1}); });
+            $$('[data-s]:checked',bg2).forEach(ch=>{ const sx=Sessions.get(ch.dataset.s); lines.push({session_id:sx.id,date:sx.date,desc:sx.objective||'Sesión',price:sx.amount||p.fee||c.default_fee||'',uds:1}); });
             close2(); renderLines();
           }; }
         });
@@ -1637,7 +1637,7 @@ function invoiceForm(inv={}){
         const retencion=$('#i_ret',bg).checked; const pct=+$('#i_retpct',bg).value||0;
         const total=hon-(retencion?hon*pct/100:0);
         const number=$('#i_num',bg).value.trim();
-        const rec={number,date:$('#i_date',bg).value,patient_id:other?null:pt,lines,concept:(inv.concept||'Sesiones de logopedia'),
+        const rec={number,date:$('#i_date',bg).value,patient_id:other?null:pt,lines,concept:(inv.concept||'Sesiones'),
           iva:c.iva!=null?c.iva:0,retencion,honorarios:hon,status:$('#i_status',bg).value,total,kind:inv.kind||'normal',rectifies:inv.rectifies||null,
           client_name:other?$('#i_cname',bg).value.trim():null,client_nif:other?$('#i_cnif',bg).value.trim():null,client_address:other?$('#i_caddr',bg).value.trim():null};
         let saved; if(edit){saved=Invoices.update(inv.id,rec);} else {saved=Invoices.insert(rec);}
@@ -1654,7 +1654,7 @@ function rectifyInvoice(id){
   const o=Invoices.get(id); if(!o) return;
   if(o.kind==='abono'){ toast('Esta ya es una rectificativa','err'); return; }
   if(!confirm('¿Crear una factura rectificativa (abono) que anule la '+o.number+'?')) return;
-  const olines=(o.lines&&o.lines.length)?o.lines:[{date:o.date,desc:o.concept||'Sesión logopedia',price:o.price,uds:o.qty||1}];
+  const olines=(o.lines&&o.lines.length)?o.lines:[{date:o.date,desc:o.concept||'Sesión',price:o.price,uds:o.qty||1}];
   const hon=(o.honorarios!=null)?o.honorarios:olines.reduce((s,l)=>s+invLineTotal(l),0);
   const tot=(o.total!=null)?o.total:hon;
   const num=nextInvoiceNumber();
@@ -1692,7 +1692,7 @@ function sendInvoiceModal(id, after){
 function viewInvoice(id){
   const i=Invoices.get(id); const p=Patients.get(i.patient_id); const c=Config.get();
   const sig=signatureImg();
-  const lines=(i.lines&&i.lines.length)?i.lines:[{date:i.date,desc:i.concept||'Sesión logopedia',price:i.price,uds:i.qty||1}];
+  const lines=(i.lines&&i.lines.length)?i.lines:[{date:i.date,desc:i.concept||'Sesión',price:i.price,uds:i.qty||1}];
   const honorarios=lines.reduce((s,l)=>s+invLineTotal(l),0);
   const total=i.total!=null?i.total:honorarios;
   const retencion=!!i.retencion; const retAmt=retencion?(honorarios-total):0;
@@ -1721,9 +1721,9 @@ function viewInvoice(id){
         <div><b>NIF/CIF:</b> ${esc(i.client_nif||(p&&p.dni)||'—')}</div>
         <div><b>Dirección:</b> ${esc(i.client_address||(p&&p.address)||'—')}</div>
       </div>
-      <div style="font-weight:700;background:${NAVY};color:#fff;padding:6px 10px;border-radius:5px;margin-bottom:6px">SESIONES DE LOGOPEDIA</div>
+      <div style="font-weight:700;background:${NAVY};color:#fff;padding:6px 10px;border-radius:5px;margin-bottom:6px">SESIONES</div>
       <table class="table"><thead><tr><th>Fecha</th><th>Sesión</th><th style="text-align:right">Precio</th><th style="text-align:center">Uds</th><th style="text-align:right">Total</th></tr></thead>
-        <tbody>${lines.map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${esc(l.desc||'Sesión logopedia')}</td><td style="text-align:right">${eur(l.price)}</td><td style="text-align:center">${esc(l.uds||1)}</td><td style="text-align:right">${eur(invLineTotal(l))}</td></tr>`).join('')}</tbody></table>
+        <tbody>${lines.map(l=>`<tr><td>${fmtDate(l.date)}</td><td>${esc(l.desc||'Sesión')}</td><td style="text-align:right">${eur(l.price)}</td><td style="text-align:center">${esc(l.uds||1)}</td><td style="text-align:right">${eur(invLineTotal(l))}</td></tr>`).join('')}</tbody></table>
       <div style="margin-top:14px;margin-left:auto;width:280px;font-size:13px">
         <div style="display:flex;justify-content:space-between"><span>Honorarios</span><b>${eur(honorarios)}</b></div>
         ${!exenta?`<div style="display:flex;justify-content:space-between"><span>IVA (${i.iva}%)</span><b>${eur(ivaAmt)}</b></div>`:''}
@@ -1824,7 +1824,7 @@ function setupWizard(){
     <h1 style="font-size:22px;text-align:center">Configura tu gabinete</h1>
     <p class="muted" style="text-align:center;font-size:13px;margin:6px 0 16px">Estos datos aparecerán en tus facturas e informes. Podrás cambiarlos luego en Configuración.</p>
     <div class="card"><div class="form-grid">
-      <div class="field full"><label>Nombre del gabinete *</label><input class="inp" id="w_clinic" value="${esc(c.clinic_name&&c.clinic_name!=='Logopedia OS'?c.clinic_name:'')}"></div>
+      <div class="field full"><label>Nombre del gabinete *</label><input class="inp" id="w_clinic" value="${esc(c.clinic_name&&c.clinic_name!=='Gabinete'?c.clinic_name:'')}"></div>
       <div class="field"><label>Nombre del/de la profesional *</label><input class="inp" id="w_pro" value="${esc(c.pro_name||'')}"></div>
       <div class="field"><label>Nº colegiado/a</label><input class="inp" id="w_lic" value="${esc(c.pro_lic||'')}"></div>
       <div class="field"><label>NIF / CIF</label><input class="inp" id="w_nif" value="${esc(c.nif||'')}"></div>
@@ -1867,7 +1867,7 @@ const ANAMNESIS=[
   {t:'Desarrollo evolutivo', f:[['ev_andar','¿A qué edad comenzó a andar?'],['ev_patoso','¿Considera a su hijo/a patoso/a?'],['ev_lat','¿Es diestro/a o zurdo/a?'],['ev_tardo','¿Tardó en hablar?'],['ev_pron','¿Se le entendía o pronunciaba mal?']]},
   {t:'Idiomas', f:[['id_casa','¿En qué lengua se comunican en casa?'],['id_cole','¿En qué lengua se comunican en el colegio?']]},
   {t:'Entorno escolar', f:[['esc_atencion','¿Pierde la atención con frecuencia?'],['esc_sospecha','¿Sospecha de problemas atencionales en el colegio?'],['esc_rend','¿En qué áreas obtiene mejor y peor rendimiento?'],['esc_apoyo','¿Recibe apoyo o adaptación en el colegio?'],['esc_vision','¿Qué visión cree que tiene el colegio de su hijo/a?'],['esc_contento','¿Va contento/a al colegio? ¿Se siente bien allí?']]},
-  {t:'Otros profesionales', f:[['op_gab','¿Ha visitado antes psicología/psicopedagogía/logopedia?'],['op_inf','¿Le han emitido algún informe psicopedagógico o logopédico?']]},
+  {t:'Otros profesionales', f:[['op_gab','¿Ha visitado antes a otros profesionales (psicología, psicopedagogía, etc.)?'],['op_inf','¿Le han emitido algún informe de otro profesional?']]},
 ];
 function anamnesisFormHTML(){
   let h='<div class="sec-title" style="margin-top:16px">Datos familiares</div>';
@@ -1920,7 +1920,7 @@ async function renderIntakeForm(){
   if(anon){ try{ const {data:pub}=await anon.from('settings').select('data').eq('id','public').maybeSingle(); brand=(pub&&pub.data)||{}; }catch(e){ console.warn('brand',e); } }
   const bName = brand.clinic_name || '';
   const brandHTML=(maxw)=> brand.logo
-    ? `<img src="${brand.logo}" alt="${esc(bName||'Logopedia')}" style="max-width:${maxw||220}px;width:82%">`
+    ? `<img src="${brand.logo}" alt="${esc(bName||'Gabinete')}" style="max-width:${maxw||220}px;width:82%">`
     : (bName?`<div style="font-weight:800;font-size:22px;color:var(--accent);letter-spacing:.4px">${esc(bName)}</div>`:'');
   const thanks=()=>{ wrap.innerHTML=`<div style="max-width:520px;margin:12vh auto 0;text-align:center;padding:24px">
       ${brandHTML(260)}
@@ -1957,7 +1957,7 @@ async function renderIntakeForm(){
       </div>
       <label style="display:flex;gap:9px;align-items:flex-start;margin-top:14px;font-size:12.5px">
         <input type="checkbox" id="k_consent" style="margin-top:3px">
-        <span>Consiento el tratamiento de estos datos, incluidos los del menor, por ${esc(brand.pro_name||bName||'el/la profesional')} con la finalidad de prestar el servicio de logopedia, conforme al RGPD (Ley Orgánica 3/2018 y Reglamento UE 2016/679). *</span></label>
+        <span>Consiento el tratamiento de estos datos, incluidos los del menor, por ${esc(brand.pro_name||bName||'el/la profesional')} con la finalidad de prestar el servicio profesional, conforme al RGPD (Ley Orgánica 3/2018 y Reglamento UE 2016/679). *</span></label>
       <div id="k_err" style="color:var(--red);font-size:12px;min-height:15px;margin-top:8px"></div>
       <button class="btn primary lg" id="k_send" style="width:100%">Enviar ficha</button>
     </div>
@@ -2009,7 +2009,7 @@ Pages.intake = (el)=>{
   $('[data-share]',el).onclick=async()=>{
     const url=location.origin+location.pathname+'?intake=1';
     const text='Hola 👋 Para daros de alta en el gabinete, rellenad esta breve ficha del paciente, por favor:\n'+url;
-    if(navigator.share){ try{ await navigator.share({title:'Ficha de alta · Logopedia',text,url}); return; }catch(e){ if(e.name==='AbortError') return; } }
+    if(navigator.share){ try{ await navigator.share({title:'Ficha de alta',text,url}); return; }catch(e){ if(e.name==='AbortError') return; } }
     try{ await navigator.clipboard.writeText(url); toast('Enlace copiado ✓','ok'); }catch{ prompt('Copia el enlace del formulario:',url); }
   };
 };
