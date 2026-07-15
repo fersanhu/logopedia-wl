@@ -312,8 +312,8 @@ let CFG_CACHE = null;  // configuración cargada desde Supabase (tabla settings)
 
 /* Backend Supabase — proyecto DEDICADO de Logopedia (separado de GMAO).
    Patrón GMAO: clave anon + cuenta Auth de servicio compartida (RLS "authenticated"). */
-const SB_URL  = 'https://euukbvdfajxyzqzehvba.supabase.co';
-const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1dWtidmRmYWp4eXpxemVodmJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMjY0OTMsImV4cCI6MjA5OTYwMjQ5M30.sW09zXpbdBcbqq73Q7w8ArsjNDf3fSpWG4GxXVRxd8M';
+const SB_URL  = 'https://hxjirgyobwwoydzdnemy.supabase.co';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4amlyZ3lvYnd3b3lkemRuZW15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNTc3MTgsImV4cCI6MjA5OTYzMzcxOH0.AqVoTV69_RssiRWTT113aiOmGYt9v8w1NEjRbFec4es';
 // White-label: el login pide email + contraseña (usuario de Supabase Auth del profesional)
 const TABLES  = ['patients','sessions','session_feedback','reports','invoices','files','reminders','intake'];
 let sb = null;
