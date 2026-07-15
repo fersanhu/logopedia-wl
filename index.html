@@ -1556,6 +1556,14 @@ function nextInvoiceNumber(){
   const next=Math.max(maxN+1, seed);
   return prefix+String(next).padStart(3,'0');
 }
+/* Serie SEPARADA para rectificativas/abonos (R01, R02…). No consume numeración normal,
+   así la factura correcta sigue el correlativo habitual (requisito de la asesora fiscal). */
+function nextRectNumber(){
+  const c=Config.get(); const rp=(c.rect_prefix||'R');
+  const nums=Invoices.all().map(i=>i.number).filter(n=>new RegExp('^'+rp+'\\d+$','i').test(String(n||''))).map(n=>parseInt(String(n).slice(rp.length))||0);
+  const next=(nums.length?Math.max(...nums):0)+1;
+  return rp+String(next).padStart(2,'0');
+}
 function invLineTotal(l){ return (+l.price||0)*(+l.uds||0); }
 const RETENCION=0.15;   // IRPF cuando el cliente es empresa/profesional
 // Detecta si el pagador es empresa: CIF (empieza por letra ≠ X/Y/Z) o razón social con forma societaria
@@ -1681,12 +1689,13 @@ function rectifyInvoice(id){
   const olines=(o.lines&&o.lines.length)?o.lines:[{date:o.date,desc:o.concept||'Sesión',price:o.price,uds:o.qty||1}];
   const hon=(o.honorarios!=null)?o.honorarios:olines.reduce((s,l)=>s+invLineTotal(l),0);
   const tot=(o.total!=null)?o.total:hon;
-  const num=nextInvoiceNumber();
+  const num=nextRectNumber();   // serie R aparte (R01…), NO consume el correlativo normal
   Invoices.insert({number:num,date:todayISO(),patient_id:o.patient_id||null,lines:olines.map(l=>({...l,price:-(+l.price||0)})),
     concept:o.concept||'Rectificación',iva:o.iva||0,retencion:!!o.retencion,honorarios:-hon,total:-tot,status:'enviado',
     kind:'abono',rectifies:o.number,client_name:o.client_name||null,client_nif:o.client_nif||null,client_address:o.client_address||null});
   toast('Rectificativa '+num+' creada (abono de '+o.number+')','ok'); App.render(); App.renderSidebar();
-  invoiceForm({date:todayISO(),patient_id:o.patient_id||'',lines:olines.map(l=>({...l})),concept:o.concept,retencion:!!o.retencion,honorarios:hon,total:tot,client_name:o.client_name,client_nif:o.client_nif,client_address:o.client_address});
+  // factura correcta = correlativo normal (la R no lo ha consumido)
+  invoiceForm({number:nextInvoiceNumber(),date:todayISO(),patient_id:o.patient_id||'',lines:olines.map(l=>({...l})),concept:o.concept,retencion:!!o.retencion,honorarios:hon,total:tot,client_name:o.client_name,client_nif:o.client_nif,client_address:o.client_address});
 }
 function invoiceMsg(i,p,cfg){
   const name=i.client_name||(p&&(p.tutor||p.name))||'';
