@@ -559,7 +559,7 @@ function modal({title,body,foot,wide=false,onMount}){
   root.appendChild(bg);
   const close=()=>bg.remove();
   bg.addEventListener('click',e=>{ if(e.target===bg) close(); });
-  $('[data-close]',bg).onclick=close;
+  $$('[data-close]',bg).forEach(b=>b.onclick=close);
   const esc2=e=>{ if(e.key==='Escape'){close();document.removeEventListener('keydown',esc2);} };
   document.addEventListener('keydown',esc2);
   if(onMount) onMount(bg,close);
