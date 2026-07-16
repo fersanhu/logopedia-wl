@@ -1057,6 +1057,17 @@ Pages.config = (el)=>{
       <div class="field full"><label>Texto de exención de IVA</label><input class="inp" id="c_exen" value="${esc(c.iva_exencion||'Factura exenta de IVA según art. 20.1 de la Ley 37/1992')}"></div>
     </div></div>
 
+    <div class="sec-title">Marca (logo y firma)</div>
+    <div class="card" style="margin-bottom:22px"><div class="form-grid">
+      <div class="field"><label>Logo</label>
+        <div id="c_logo_prev" style="margin-bottom:6px">${LOGO()?`<img src="${LOGO()}" style="max-height:46px;max-width:180px">`:'<span class="muted" style="font-size:12px">Sin logo (se muestra el nombre como texto)</span>'}</div>
+        <input class="inp" id="c_logo" type="file" accept="image/*"></div>
+      <div class="field"><label>Firma (para facturas)</label>
+        <div id="c_sign_prev" style="margin-bottom:6px">${(typeof signatureImg==='function'&&signatureImg())?`<img src="${signatureImg()}" style="max-height:46px;max-width:180px">`:'<span class="muted" style="font-size:12px">Sin firma</span>'}</div>
+        <input class="inp" id="c_sign" type="file" accept="image/*"></div>
+      <div class="field full"><div class="hint">Imagen máx 2 MB. El logo aparece en el menú, informes y el formulario de alta; la firma, en las facturas. Deja el campo vacío para no cambiar el actual.</div></div>
+    </div></div>
+
     <div class="sec-title">Inteligencia Artificial (Anthropic · Claude)</div>
     <div class="card" style="margin-bottom:22px">
       <div class="field"><label>Clave API de Anthropic</label>
@@ -1096,7 +1107,7 @@ Pages.config = (el)=>{
     <div style="margin-top:24px"><button class="btn primary lg" data-save>Guardar configuración</button></div>
   </div>`;
 
-  $('[data-save]',el).onclick=()=>{
+  $('[data-save]',el).onclick=async()=>{
     Config.set({
       sector:$('#c_sector').value,
       pro_name:$('#c_pro').value.trim(), pro_lic:$('#c_col').value.trim(), clinic_name:$('#c_clinic').value.trim(),
@@ -1106,6 +1117,12 @@ Pages.config = (el)=>{
       anthropic_key:$('#c_key').value.trim(),
       anthropic_model:$('#c_model').value, supabase_url:$('#c_sburl').value.trim(), supabase_key:$('#c_sbkey').value.trim()
     });
+    // Logo/firma opcionales: si se sube una imagen, se guarda en files y se refresca la marca pública
+    const readImg=(id)=>new Promise(res=>{ const inp=$('#'+id,el); const f=inp&&inp.files&&inp.files[0]; if(!f) return res(null); if(f.size>2*1024*1024){toast('Imagen máx 2 MB','err');return res(null);} const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(f); });
+    const saveImg=(kind,data)=>{ if(!data) return; const ex=Files.where(x=>x.kind===kind&&!x.patient_id)[0]; if(ex) Files.update(ex.id,{data}); else Files.insert({kind,patient_id:null,name:kind,data}); };
+    const lg=await readImg('c_logo'), sg=await readImg('c_sign');
+    saveImg('logo',lg); saveImg('signature',sg);
+    if(lg) Config.syncPublic();
     toast('Configuración guardada','ok'); App.render();
   };
   $('[data-export]',el).onclick=()=>{
