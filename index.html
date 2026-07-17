@@ -1807,30 +1807,39 @@ function fileUpload(patientId, after){
 /* ---------- Descargar PDF / Imprimir ---------- */
 let _pdfLibP;
 function ensurePdfLib(){
-  if(window.html2pdf) return Promise.resolve();
+  if(window.html2canvas && window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
   if(_pdfLibP) return _pdfLibP;
-  _pdfLibP=new Promise((res,rej)=>{
-    const s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js';
-    s.onload=()=>res(); s.onerror=()=>{_pdfLibP=null;rej(new Error('load'));};
-    document.head.appendChild(s);
-  });
+  const load=src=>new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=()=>rej(new Error('load'));document.head.appendChild(s);});
+  _pdfLibP=(async()=>{
+    if(!window.html2canvas) await load('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+    if(!(window.jspdf&&window.jspdf.jsPDF)) await load('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+  })().catch(e=>{_pdfLibP=null;throw e;});
   return _pdfLibP;
 }
-// Descarga directa del PDF (sin diálogo de impresión) — funciona en móvil.
+// Descarga directa del PDF (sin diálogo de impresión) — funciona en móvil. html2canvas + jsPDF.
 async function downloadPDF(innerHTML,title){
   const name=((title||'documento').replace(/[^\w\sÁÉÍÓÚáéíóúÑñ.\-]/g,'').trim()||'documento')+'.pdf';
   let cont=null;
   try{
     await ensurePdfLib();
     cont=document.createElement('div');
-    cont.style.cssText='position:fixed;left:-10000px;top:0;width:760px;background:#fff;color:#222;font-family:Georgia,"Times New Roman",serif;line-height:1.6;padding:24px';
+    cont.style.cssText='position:fixed;left:-10000px;top:0;width:760px;background:#fff;color:#222;font-family:Georgia,"Times New Roman",serif;line-height:1.6;padding:24px;z-index:-1';
     cont.innerHTML='<style>table{width:100%;border-collapse:collapse;margin:10px 0}th,td{padding:7px 9px;border-bottom:1px solid #ccc;text-align:left}.muted{color:#666}b{color:#000}img{max-width:100%}</style>'+innerHTML;
     document.body.appendChild(cont);
-    await html2pdf().set({margin:[10,10,12,10],filename:name,image:{type:'jpeg',quality:0.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},pagebreak:{mode:['css','legacy']}}).from(cont).save();
+    await new Promise(r=>setTimeout(r,60));   // deja que carguen imágenes/layout
+    const canvas=await html2canvas(cont,{scale:2,useCORS:true,backgroundColor:'#ffffff'});
+    const jsPDF=window.jspdf.jsPDF;
+    const pdf=new jsPDF('p','mm','a4');
+    const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
+    const imgW=pw, imgH=canvas.height*imgW/canvas.width;
+    const data=canvas.toDataURL('image/jpeg',0.98);
+    let hLeft=imgH,pos=0;
+    pdf.addImage(data,'JPEG',0,pos,imgW,imgH); hLeft-=ph;
+    while(hLeft>0){ pos-=ph; pdf.addPage(); pdf.addImage(data,'JPEG',0,pos,imgW,imgH); hLeft-=ph; }
+    pdf.save(name);
     typeof toast==='function'&&toast('PDF descargado','ok');
   }catch(e){
-    printNode(innerHTML,title);   // respaldo: impresión clásica si no se pudo cargar la librería (sin red)
+    printNode(innerHTML,title);   // respaldo: impresión clásica si no hay red/CDN
   }finally{ if(cont) try{cont.remove();}catch(e){} }
 }
 function printNode(innerHTML,title){
