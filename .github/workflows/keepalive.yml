@@ -1,0 +1,29 @@
+name: Keep demo Supabase awake
+
+# Evita que el proyecto Supabase del DEMO (plan gratis) se pause por inactividad.
+# Supabase duerme los proyectos free tras ~7 dias sin peticiones; aqui pingeamos cada ~2 dias.
+# La anon key es publica (va embebida en la app), no es un secreto.
+
+on:
+  schedule:
+    - cron: '37 5 */2 * *'   # cada 2 dias a las 05:37 UTC
+  workflow_dispatch:          # permite lanzarlo a mano desde la pestana Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      SB_URL: https://hxjirgyobwwoydzdnemy.supabase.co
+      SB_ANON: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4amlyZ3lvYnd3b3lkemRuZW15Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNTc3MTgsImV4cCI6MjA5OTYzMzcxOH0.AqVoTV69_RssiRWTT113aiOmGYt9v8w1NEjRbFec4es
+    steps:
+      - name: Ping Supabase REST (mantiene la BD activa)
+        run: |
+          code=$(curl -sS -m 30 -o /dev/null -w "%{http_code}" \
+            "$SB_URL/rest/v1/settings?select=id&limit=1" \
+            -H "apikey: $SB_ANON" \
+            -H "Authorization: Bearer $SB_ANON")
+          echo "Supabase respondio HTTP $code"
+          # 200/206 = OK. Si el proyecto estuviera pausado daria error de conexion.
+          if [ "$code" != "200" ] && [ "$code" != "206" ]; then
+            echo "::warning::Respuesta inesperada ($code). Revisa si el proyecto sigue activo."
+          fi
