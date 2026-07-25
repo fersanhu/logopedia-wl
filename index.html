@@ -543,7 +543,8 @@ function closeDrawer(){ document.body.classList.remove('nav-open'); }
 const App = {
   page:'dashboard', param:null,
   navigate(page,param=null){ App.page=page; App.param=param; closeDrawer(); App.render(); window.scrollTo(0,0); $('#main').scrollTop=0; },
-  render(){ App.renderSidebar(); App.renderMobileNav(); const fn=Pages[App.page]||Pages.dashboard; $('#main').innerHTML=''; fn($('#main'),App.param); },
+  applyBrand(){ try{ const c=Config.get(), r=document.documentElement.style; if(c&&c.accent){ r.setProperty('--accent',c.accent); r.setProperty('--accent-soft', c.accent_soft||'#f3e9ef'); } }catch(e){} },
+  render(){ App.applyBrand(); App.renderSidebar(); App.renderMobileNav(); const fn=Pages[App.page]||Pages.dashboard; $('#main').innerHTML=''; fn($('#main'),App.param); },
   renderMobileNav(){
     const el=$('#bottomnav'); if(!el) return;
     const primary=['dashboard','patients','calendar','sessions'];
