@@ -400,7 +400,7 @@ const DEFAULT_CFG = {
   nif:'', address:'', phone:'', email:'',
   ccc:'', iva_exencion:'Factura exenta de IVA según art. 20.1 de la Ley 37/1992',
   iva:'0', inv_prefix:String(new Date().getFullYear()).slice(2), inv_seed:1,
-  default_fee:'', anthropic_model:'claude-opus-4-8', sector:'generico',
+  default_fee:'', anthropic_model:'claude-sonnet-5', sector:'generico',
 };
 const Config = {
   get(){ if(CFG_CACHE===null){ try{ CFG_CACHE=JSON.parse(localStorage.getItem(NS+'_cfg')||'{}'); }catch{ CFG_CACHE={}; } } return {...DEFAULT_CFG, ...CFG_CACHE}; },
@@ -484,32 +484,36 @@ function nextWeeklyDates(startISO,untilISO){ const out=[]; const [ys,ms,ds]=star
    Si no hay clave, devuelve un borrador determinista (offline).
    ============================================================ */
 const AI = {
-  key(){ return (Config.get().anthropic_key||'').trim(); },
-  enabled(){ return !!AI.key(); },
-  model(){ return Config.get().anthropic_model||'claude-opus-4-8'; },
-  // Anthropic Messages API — llamada directa desde el navegador
-  async chat(system, user){
-    if(!AI.enabled()) return AI._fallbackChat(user);
-    const r = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{ 'content-type':'application/json', 'x-api-key':AI.key(),
-        'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-      body:JSON.stringify({ model:AI.model(), max_tokens:4000, system,
-        messages:[{role:'user',content:user}] })
-    });
-    if(!r.ok){ const t=await r.text(); throw new Error('Anthropic '+r.status+': '+t.slice(0,200)); }
-    const j = await r.json();
-    if(j.stop_reason==='refusal') throw new Error('La IA rechazó la solicitud.');
-    return (j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
+  // Modo SERVIDOR: la clave de Anthropic vive en la Edge Function `generar-ia`
+  // (nunca en el navegador). Allí se aplica el límite mensual y se registra el uso.
+  model(){ return Config.get().anthropic_model||'claude-sonnet-5'; },
+  enabled(){ return true; },        // IA disponible vía servidor
+  usage:null,                       // {used,limit,remaining} tras la última llamada
+  // kind: 'informe' (cuenta para el límite mensual) | 'resumen' | 'mensaje' (ilimitados)
+  async chat(system, user, kind='informe'){
+    try{
+      if(!sb) throw new Error('sin conexión');
+      const { data, error } = await sb.functions.invoke('generar-ia', { body:{ system, user, model:AI.model(), kind } });
+      if(error) throw error;
+      if(data && data.limit_reached){
+        AI.usage={used:data.used,limit:data.limit,remaining:0};
+        const err=new Error(`Has alcanzado el límite de ${data.limit} informes este mes.`); err.limit=true; throw err;
+      }
+      if(data && typeof data.text==='string'){ if(data.usage) AI.usage=data.usage; return data.text.trim(); }
+      throw new Error('Respuesta de IA vacía');
+    }catch(e){
+      if(e && e.limit) throw e;      // el límite sí se muestra al usuario
+      console.warn('IA por servidor no disponible; usando borrador offline', e);
+      return AI._fallbackChat(user);
+    }
   },
   // Reconocimiento de voz del navegador (sin clave). Devuelve un objeto controlador.
   speechSupported(){ return !!(window.SpeechRecognition||window.webkitSpeechRecognition); },
   _fallbackChat(user){
-    return `[Borrador automático — sin IA conectada]\n\n`+
+    return `[Borrador automático — IA no disponible ahora mismo]\n\n`+
       `Resumen clínico:\n${user.slice(0,600)}\n\n`+
       `Evolución: el paciente continúa el plan de intervención previsto.\n`+
-      `Recomendaciones: mantener la pauta de ejercicios y revisar objetivos en la próxima sesión.\n\n`+
-      `(Añade tu clave de Anthropic en Configuración para generar texto clínico real.)`;
+      `Recomendaciones: mantener la pauta de ejercicios y revisar objetivos en la próxima sesión.`;
   },
 };
 
@@ -1071,9 +1075,9 @@ Pages.config = (el)=>{
 
     <div class="sec-title">Inteligencia Artificial (Anthropic · Claude)</div>
     <div class="card" style="margin-bottom:22px">
-      <div class="field"><label>Clave API de Anthropic</label>
-        <input class="inp" id="c_key" type="password" placeholder="sk-ant-..." value="${esc(c.anthropic_key||'')}">
-        <div class="hint">Se guarda solo en este navegador. Necesaria para generar resúmenes e informes clínicos. Estado: <b>${AI.enabled()?'<span style="color:var(--green)">Conectada ✓</span>':'sin conectar'}</b>. El dictado por voz usa el reconocimiento del navegador (no requiere clave).</div>
+      <div class="field"><label>Inteligencia Artificial</label>
+        <input type="hidden" id="c_key" value="${esc(c.anthropic_key||'')}">
+        <div class="hint">La IA está <b><span style="color:var(--green)">gestionada por el servidor ✓</span></b>: la clave se guarda de forma segura en el servidor, nunca en este navegador. Incluye un límite de <b>50 informes al mes</b> (los resúmenes y mensajes a familias no cuentan). El dictado por voz usa el reconocimiento del navegador.</div>
       </div>
       <div class="field"><label>Modelo</label>
         <select class="inp" id="c_model">
@@ -1419,7 +1423,7 @@ function sendToFamilyModal(sessionId, after){
         try{
           const sys='Eres el/la profesional de un gabinete. Redacta un mensaje BREVE (5-6 líneas máx.), cercano y claro para la familia tras la sesión, en español. Evita datos sensibles innecesarios. Saludo con el nombre del tutor si se da, qué se ha trabajado y una pauta para casa si procede. Firma con el nombre del profesional.';
           const user=`Tutor: ${p.tutor||''}. Paciente: ${p.name||''}. Fecha: ${s.date}. Objetivo: ${s.objective||'—'}. Notas/resumen: ${fb.summary||fb.text||s.evolution||'sin notas'}. Profesional: ${cfg.pro_name||''}.`;
-          const out=await AI.chat(sys,user); $('#sf_msg',bg).value=out; $('#sf_aist',bg).textContent=AI.enabled()?'✓ Redactado':'(borrador sin IA)';
+          const out=await AI.chat(sys,user,'mensaje'); $('#sf_msg',bg).value=out; $('#sf_aist',bg).textContent='✓ Redactado';
         }catch(e){ $('#sf_aist',bg).textContent=''; toast(e.message,'err'); }
       };
       $$('[data-wa]',bg).forEach(waBtn=>waBtn.onclick=()=>{ const m=getMsg(); if(!m){toast('El mensaje está vacío','err');return;} window.open('https://wa.me/'+waBtn.dataset.wa+'?text='+encodeURIComponent(m),'_blank'); toast('Abriendo WhatsApp…','ok'); close(); after&&after(); });
@@ -1483,8 +1487,8 @@ function feedbackModal(sessionId, after){
         try{
           const sys='Eres un/a profesional clínico/a. A partir de notas informales redacta un resumen clínico breve y profesional en español con: resumen de la sesión, evolución observada y recomendaciones. Sé conciso y objetivo.';
           const user=`Paciente: ${p?.name||''} (${p?.diagnosis||'sin diagnóstico'}). Objetivo de la sesión: ${s.objective||'—'}.\nNotas:\n${notes}`;
-          const out=await AI.chat(sys,user);
-          $('#fb_sum',bg).value=out; $('#fb_genst',bg).textContent=AI.enabled()?'✓ Generado':'(borrador sin IA)';
+          const out=await AI.chat(sys,user,'resumen');
+          $('#fb_sum',bg).value=out; $('#fb_genst',bg).textContent='✓ Generado';
         }catch(e){ $('#fb_genst',bg).textContent=''; toast(e.message,'err'); }
       };
       $('[data-save]',bg).onclick=()=>{
