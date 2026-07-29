@@ -1652,12 +1652,12 @@ function invoiceForm(inv={}){
             <td><input class="inp" style="padding:5px 7px" data-l="${n}" data-k="desc" value="${esc(l.desc||'Sesión')}"></td>
             <td><input class="inp" style="padding:5px 7px;width:80px" type="number" step="0.01" data-l="${n}" data-k="price" value="${esc(l.price||'')}"></td>
             <td><input class="inp" style="padding:5px 7px;width:60px" type="number" data-l="${n}" data-k="uds" value="${esc(l.uds||1)}"></td>
-            <td style="white-space:nowrap"><b>${eur(invLineTotal(l))}</b></td>
+            <td style="white-space:nowrap"><b data-tot="${n}">${eur(invLineTotal(l))}</b></td>
             <td><button class="btn sm ghost danger" data-rm="${n}">×</button></td>
           </tr>`).join('')}</tbody></table>`
           :`<div class="empty" style="padding:24px"><span class="em">€</span>Añade sesiones del paciente o una línea manual</div>`;
         recalc();
-        $$('[data-l]',linesEl).forEach(inp=>inp.oninput=()=>{ lines[+inp.dataset.l][inp.dataset.k]=inp.value; if(inp.dataset.k==='price'||inp.dataset.k==='uds')renderLines(); else recalc(); });
+        $$('[data-l]',linesEl).forEach(inp=>inp.oninput=()=>{ const n=+inp.dataset.l; lines[n][inp.dataset.k]=inp.value; const t=linesEl.querySelector('[data-tot="'+n+'"]'); if(t) t.textContent=eur(invLineTotal(lines[n])); recalc(); });
         $$('[data-rm]',linesEl).forEach(b=>b.onclick=()=>{ lines.splice(+b.dataset.rm,1); renderLines(); });
       };
       renderLines();
