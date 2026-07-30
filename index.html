@@ -1778,6 +1778,7 @@ function viewInvoice(id){
         <div><b>Nombre y apellidos / Razón social:</b> ${esc(i.client_name||clientName(p)||'')}</div>
         <div><b>NIF/CIF:</b> ${esc(i.client_nif||(p&&p.dni)||'—')}</div>
         <div><b>Dirección:</b> ${esc(i.client_address||(p&&p.address)||'—')}</div>
+        ${(p && !isCompany(p) && p.name) ? `<div><b>${(typeof L==='function'?L('Pac'):'Paciente')}:</b> ${esc(p.name)}</div>` : ''}
       </div>
       <div style="font-weight:700;background:${NAVY};color:#fff;padding:6px 10px;border-radius:5px;margin-bottom:6px">SESIONES</div>
       <table class="table"><thead><tr><th>Fecha</th><th>Sesión</th><th style="text-align:right">Precio</th><th style="text-align:center">Uds</th><th style="text-align:right">Total</th></tr></thead>
