@@ -426,6 +426,9 @@ const SECTORS = {
   logopedia: { label:'Logopedia', clinic:'Gabinete', reason:'Diagnóstico', contact:'Tutor/a legal', intake:'anamnesis', col:'Coleg. Logopedas',
     person:{one:'paciente',many:'pacientes',One:'Paciente',Many:'Pacientes'},
     session:{one:'sesión',many:'sesiones',One:'Sesión',Many:'Sesiones'} },
+  psicologia: { label:'Psicología', clinic:'Centro', reason:'Motivo de consulta', contact:'Tutor/a legal', intake:'anamnesis', col:'Coleg. Psicólogos',
+    person:{one:'paciente',many:'pacientes',One:'Paciente',Many:'Pacientes'},
+    session:{one:'sesión',many:'sesiones',One:'Sesión',Many:'Sesiones'} },
 };
 function SEC(){ return SECTORS[(typeof Config!=='undefined'&&Config.get().sector)||'generico'] || SECTORS.generico; }
 /* Terminología viva: L('Pacs') → "Pacientes"/"Clientes"… siempre según el sector activo. */
@@ -2127,7 +2130,8 @@ async function resolveTenant(){
   if(!key){
     const generic = host==='localhost'||/^\d/.test(host)||host.endsWith('github.io')||host.endsWith('pages.dev');
     const parts=host.split('.');
-    if(!generic && parts.length>2 && parts[0]!=='www') key=parts[0]; // aracil.tudominio.com -> aracil
+    // aracil.dominio.com -> aracil ; demo.aracil.dominio.com -> aracil (subdominio "demo." por delante)
+    if(!generic && parts.length>2 && parts[0]!=='www') key = (parts[0]==='demo' && parts.length>3) ? parts[1] : parts[0];
   }
   if(!key||key==='www') return; // sin subdominio de cliente: usa el fallback (demo)
   try{
