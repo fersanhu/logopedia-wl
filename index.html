@@ -1727,6 +1727,14 @@ function rectifyInvoice(id){
 }
 function invoiceMsg(i,p,cfg){
   const name=i.client_name||(p&&(p.tutor||p.name))||'';
+  // Estilo "mensualidad" (opt-in por cliente vía settings.data.invoice_msg_mensualidad)
+  if(cfg.invoice_msg_mensualidad){
+    const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const ld=(i.lines&&i.lines.length&&i.lines[0].date)?i.lines[0].date:i.date;
+    const d=ld?new Date(ld):null; const mi=(d&&!isNaN(d))?d.getMonth():-1;
+    const mes=mi>=0?(MESES[mi].charAt(0).toUpperCase()+MESES[mi].slice(1)):'';
+    return `Estimado/a ${name}\n\nOs adjunto la factura correspondiente a la mensualidad de ${mes}\n\nMuchas gracias`;
+  }
   const first=name.split(/[\/,]/)[0].trim();
   const ccc=cfg.ccc?('\n\nPuedes abonarla por transferencia al CCC: '+cfg.ccc+'.'):'';
   return `Hola${first?' '+first:''}:\n\nTe envío la factura nº ${i.number} (${fmtDate(i.date)}) por un total de ${eur(i.total)}${i.concept?' — '+i.concept:''}.${ccc}\n\nUn saludo,\n${cfg.pro_name||cfg.clinic_name||''}`;
