@@ -1632,6 +1632,7 @@ function invoiceForm(inv={}){
         </span></div>
       <div id="i_lines"></div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="i_ret"> Retención IRPF</label> <input class="inp" id="i_retpct" type="number" step="1" style="width:70px;padding:5px 7px" value="${(inv.retencion&&inv.honorarios)?Math.round((inv.honorarios-inv.total)/inv.honorarios*100):15}"> %</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="i_showpat"> Incluir nombre del ${(typeof L==='function'?L('pac'):'paciente')} en la factura</label></div>
       <div class="card" style="background:var(--bg-soft);margin-top:10px;font-size:13px">
         <div style="display:flex;justify-content:space-between"><span>Honorarios</span><b id="i_hon">—</b></div>
         <div id="i_retrow" style="display:none;justify-content:space-between;color:var(--red)"><span id="i_retlbl">Retención IRPF</span><b id="i_retamt">—</b></div>
@@ -1646,7 +1647,7 @@ function invoiceForm(inv={}){
         $('#i_retamt',bg).textContent='-'+eur(ret); $('#i_total',bg).textContent=eur(hon-ret); };
       const syncClient=()=>{ const v=$('#i_pt',bg).value; const other=v==='_other_'; const ob=$('#i_other',bg); if(ob) ob.style.display=other?'block':'none';
         const p=other?null:Patients.get(v); const hint=$('#i_clienthint',bg);
-        if(p){ hint.innerHTML='Se factura a <b>'+esc(clientName(p))+'</b>'+(p.dni?' · '+esc(p.dni):'')+(isCompany(p)?' · <b style="color:var(--gold)">empresa</b>':''); if(!edit) $('#i_ret',bg).checked=isCompany(p); }
+        if(p){ hint.innerHTML='Se factura a <b>'+esc(clientName(p))+'</b>'+(p.dni?' · '+esc(p.dni):'')+(isCompany(p)?' · <b style="color:var(--gold)">empresa</b>':''); if(!edit){ $('#i_ret',bg).checked=isCompany(p); if($('#i_showpat',bg)) $('#i_showpat',bg).checked=!isCompany(p); } }
         else if(other){ hint.innerHTML='Factura a empresa/cliente externo'; } else hint.textContent=''; recalc(); };
       const renderLines=()=>{
         linesEl.innerHTML = lines.length?`<table class="table"><thead><tr><th>Fecha</th><th>Concepto</th><th>Precio</th><th>Uds</th><th>Total</th><th></th></tr></thead><tbody>${lines.map((l,n)=>`
@@ -1665,6 +1666,7 @@ function invoiceForm(inv={}){
       };
       renderLines();
       if(edit) $('#i_ret',bg).checked=!!inv.retencion;
+      if(edit && $('#i_showpat',bg)){ const _pp=inv.patient_id?Patients.get(inv.patient_id):null; $('#i_showpat',bg).checked = (inv.show_patient!==undefined)?!!inv.show_patient:(!!_pp && !isCompany(_pp)); }
       $('#i_ret',bg).onchange=recalc; $('#i_retpct',bg).oninput=recalc;
       $('#i_pt',bg).onchange=syncClient;
       syncClient();
@@ -1696,7 +1698,8 @@ function invoiceForm(inv={}){
         const number=$('#i_num',bg).value.trim();
         const rec={number,date:$('#i_date',bg).value,patient_id:other?null:pt,lines,concept:(inv.concept||'Sesiones'),
           iva:c.iva!=null?c.iva:0,retencion,honorarios:hon,status:$('#i_status',bg).value,total,kind:inv.kind||'normal',rectifies:inv.rectifies||null,
-          client_name:other?$('#i_cname',bg).value.trim():null,client_nif:other?$('#i_cnif',bg).value.trim():null,client_address:other?$('#i_caddr',bg).value.trim():null};
+          client_name:other?$('#i_cname',bg).value.trim():null,client_nif:other?$('#i_cnif',bg).value.trim():null,client_address:other?$('#i_caddr',bg).value.trim():null,
+          show_patient:$('#i_showpat',bg)?$('#i_showpat',bg).checked:false};
         let saved; if(edit){saved=Invoices.update(inv.id,rec);} else {saved=Invoices.insert(rec);}
         // marcar sesiones facturadas
         lines.forEach(l=>{ if(l.session_id) Sessions.update(l.session_id,{invoice_ref:number}); });
@@ -1749,6 +1752,7 @@ function sendInvoiceModal(id, after){
 }
 function viewInvoice(id){
   const i=Invoices.get(id); const p=Patients.get(i.patient_id); const c=Config.get();
+  const showPat=(i.show_patient!==undefined)?!!i.show_patient:(!!p && !isCompany(p));
   const sig=signatureImg();
   const lines=(i.lines&&i.lines.length)?i.lines:[{date:i.date,desc:i.concept||'Sesión',price:i.price,uds:i.qty||1}];
   const honorarios=lines.reduce((s,l)=>s+invLineTotal(l),0);
@@ -1778,7 +1782,7 @@ function viewInvoice(id){
         <div><b>Nombre y apellidos / Razón social:</b> ${esc(i.client_name||clientName(p)||'')}</div>
         <div><b>NIF/CIF:</b> ${esc(i.client_nif||(p&&p.dni)||'—')}</div>
         <div><b>Dirección:</b> ${esc(i.client_address||(p&&p.address)||'—')}</div>
-        ${(p && !isCompany(p) && p.name) ? `<div><b>${(typeof L==='function'?L('Pac'):'Paciente')}:</b> ${esc(p.name)}</div>` : ''}
+        ${(showPat && p && p.name) ? `<div><b>${(typeof L==='function'?L('Pac'):'Paciente')}:</b> ${esc(p.name)}</div>` : ''}
       </div>
       <div style="font-weight:700;background:${NAVY};color:#fff;padding:6px 10px;border-radius:5px;margin-bottom:6px">SESIONES</div>
       <table class="table"><thead><tr><th>Fecha</th><th>Sesión</th><th style="text-align:right">Precio</th><th style="text-align:center">Uds</th><th style="text-align:right">Total</th></tr></thead>
