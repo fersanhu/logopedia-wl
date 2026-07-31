@@ -1006,7 +1006,7 @@ Pages.invoices = (el)=>{
     $('#inv-body').innerHTML= inv.length?inv.map(i=>{
       const p=Patients.get(i.patient_id); const st=INV_STATUS[i.status]||INV_STATUS.pendiente;
       return `<tr>
-        <td><b>${esc(i.number)}</b></td><td>${esc(i.client_name||clientName(p)||'—')}${i.kind==='abono'?' <span class="pill red" style="font-size:10px">ABONO</span>':''}${i.retencion?' <span class="pill gold" style="font-size:10px">ret.</span>':''}</td>
+        <td><b>${esc(i.number)}</b></td><td>${esc(i.client_name||clientName(p)||'—')}${i.kind==='abono'?' <span class="pill red" style="font-size:10px">ABONO</span>':''}${i.retencion?' <span class="pill gold" style="font-size:10px">ret.</span>':''}${(i.verifactu&&i.verifactu.uuid)?' <span class="pill blue" style="font-size:10px" title="Registrada en Veri*Factu">✓ VERI*FACTU</span>':''}</td>
         <td>${fmtDate(i.date)}</td><td>${esc(i.concept||'—')}</td>
         <td><b>${eur(i.total)}</b></td>
         <td><span class="pill ${st.pill}"><span class="dot"></span>${st.label}</span></td>
