@@ -1704,6 +1704,8 @@ function invoiceForm(inv={}){
         // marcar sesiones facturadas
         lines.forEach(l=>{ if(l.session_id) Sessions.update(l.session_id,{invoice_ref:number}); });
         toast('Factura guardada','ok'); close(); App.render(); App.renderSidebar();
+        // Veri*Factu: registro automático en tiempo real al emitir (si el módulo está activo)
+        if(!edit && c.verifactu_enabled && saved && !(saved.verifactu&&saved.verifactu.uuid) && (i=>i&&i.kind!=='abono')(saved)){ setTimeout(()=>verifactuSend(saved.id,true),200); }
       };
     }
   });
@@ -1773,27 +1775,42 @@ function verifactuPayload(i,p,c){
   const nombre=String(i.client_name||clientName(p)||'').trim();
   const d=new Date(); const fecha=('0'+d.getDate()).slice(-2)+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+d.getFullYear();
   const num=String(i.number||''); const dash=num.indexOf('-');
+  // F1 (con NIF de receptor) solo para empresas o si el cliente activa la validación con NIFs reales;
+  // resto (particulares) → F2 simplificada, sin NIF de receptor (la AEAT no valida el DNI).
+  const useNif = !!nif && (c.verifactu_validar_nif===true || (typeof isCompany==='function' && isCompany(p)));
   const payload={ serie: dash>0?num.slice(0,dash):'', numero: dash>0?num.slice(dash+1):num,
-    fecha_expedicion:fecha, tipo_factura: nif?'F1':'F2', descripcion:String(i.concept||'Servicios').slice(0,250) };
-  if(nif){ payload.nif=nif; payload.nombre=nombre; payload.validar_destinatario=(c.verifactu_validar_nif===true); }
+    fecha_expedicion:fecha, tipo_factura: useNif?'F1':'F2', descripcion:String(i.concept||'Servicios').slice(0,250) };
+  if(useNif){ payload.nif=nif; payload.nombre=nombre; payload.validar_destinatario=(c.verifactu_validar_nif===true); }
   if(iva>0){ const cuota=base*iva/100; payload.lineas=[{base_imponible:base.toFixed(2), tipo_impositivo:String(iva), cuota_repercutida:cuota.toFixed(2)}]; payload.importe_total=(base+cuota).toFixed(2); }
   else { payload.lineas=[{base_imponible:base.toFixed(2), operacion_exenta:'E1'}]; payload.importe_total=base.toFixed(2); }
   return payload;
 }
-async function verifactuSend(id){
+async function verifactuSend(id, silent){
   const i=Invoices.get(id); if(!i) return;
   const p=Patients.get(i.patient_id); const c=Config.get();
-  if(!sb){ toast('Sin conexión con el servidor','err'); return; }
-  toast('Registrando en Veri*Factu…');
+  if(!sb){ if(!silent) toast('Sin conexión con el servidor','err'); return; }
+  if(!silent) toast('Registrando en Veri*Factu…');
   try{
     const payload=verifactuPayload(i,p,c);
     const { data, error }=await sb.functions.invoke('verifactu',{body:{action:'create',payload}});
-    if(error) throw error;
-    if(!data||!data.ok||!data.uuid) throw new Error((data&&data.data&&(data.data.error||data.data.message||data.data.detail))||'respuesta inesperada');
-    Invoices.update(id,{verifactu:{ uuid:data.uuid, huella:data.huella, qr:data.qr, url:(data.data&&data.data.url)||null, estado:data.estado, numero:payload.numero, serie:payload.serie, sent_at:nowISO() }});
+    let body=data;
+    if(error && error.context && error.context.json){ try{ body=await error.context.json(); }catch(_){} }
+    if(!body||!body.uuid){ throw new Error((body&&body.data&&(body.data.error||body.data.message||body.data.detail))||(error&&error.message)||'respuesta inesperada'); }
+    Invoices.update(id,{verifactu:{ uuid:body.uuid, huella:body.huella, qr:body.qr, url:(body.data&&body.data.url)||null, estado:body.estado||'Pendiente', numero:payload.numero, serie:payload.serie, sent_at:nowISO() }});
     toast('Factura registrada en Veri*Factu ✓','ok');
-    viewInvoice(id);
+    if(!silent) viewInvoice(id);
+    verifactuRefresh(id, 4000);   // la AEAT responde en unos segundos → actualizar estado real
   }catch(e){ toast('Veri*Factu: '+(e&&e.message||e),'err'); }
+}
+function verifactuRefresh(id, delay){
+  setTimeout(async()=>{
+    try{
+      const inv=Invoices.get(id); const u=inv&&inv.verifactu&&inv.verifactu.uuid; if(!u||!sb) return;
+      const { data }=await sb.functions.invoke('verifactu',{body:{action:'status',payload:{uuid:u}}});
+      const est=data&&data.estado; const cur=Invoices.get(id);
+      if(est && cur && cur.verifactu){ Invoices.update(id,{verifactu:{...cur.verifactu, estado:est}}); if(typeof App!=='undefined' && App.page==='invoices') App.render(); }
+    }catch(e){}
+  }, delay||4000);
 }
 function viewInvoice(id){
   const i=Invoices.get(id); const p=Patients.get(i.patient_id); const c=Config.get();
