@@ -1764,9 +1764,42 @@ function sendInvoiceModal(id, after){
     }
   });
 }
+/* ---------- VERI*FACTU (integración Verifacti, opt-in con settings.verifactu_enabled) ---------- */
+function verifactuPayload(i,p,c){
+  const lines=(i.lines&&i.lines.length)?i.lines:[];
+  const base=(i.honorarios!=null)?Math.abs(+i.honorarios):lines.reduce((s,l)=>s+invLineTotal(l),0);
+  const iva=+c.iva||0;
+  const nif=String(i.client_nif||(p&&p.dni)||'').trim();
+  const nombre=String(i.client_name||clientName(p)||'').trim();
+  const d=new Date(); const fecha=('0'+d.getDate()).slice(-2)+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+d.getFullYear();
+  const num=String(i.number||''); const dash=num.indexOf('-');
+  const payload={ serie: dash>0?num.slice(0,dash):'', numero: dash>0?num.slice(dash+1):num,
+    fecha_expedicion:fecha, tipo_factura: nif?'F1':'F2', descripcion:String(i.concept||'Servicios').slice(0,250) };
+  if(nif){ payload.nif=nif; payload.nombre=nombre; }
+  if(iva>0){ const cuota=base*iva/100; payload.lineas=[{base_imponible:base.toFixed(2), tipo_impositivo:String(iva), cuota_repercutida:cuota.toFixed(2)}]; payload.importe_total=(base+cuota).toFixed(2); }
+  else { payload.lineas=[{base_imponible:base.toFixed(2), operacion_exenta:'E1'}]; payload.importe_total=base.toFixed(2); }
+  return payload;
+}
+async function verifactuSend(id){
+  const i=Invoices.get(id); if(!i) return;
+  const p=Patients.get(i.patient_id); const c=Config.get();
+  if(!sb){ toast('Sin conexión con el servidor','err'); return; }
+  toast('Registrando en Veri*Factu…');
+  try{
+    const payload=verifactuPayload(i,p,c);
+    const { data, error }=await sb.functions.invoke('verifactu',{body:{action:'create',payload}});
+    if(error) throw error;
+    if(!data||!data.ok||!data.uuid) throw new Error((data&&data.data&&(data.data.error||data.data.message||data.data.detail))||'respuesta inesperada');
+    Invoices.update(id,{verifactu:{ uuid:data.uuid, huella:data.huella, qr:data.qr, url:(data.data&&data.data.url)||null, estado:data.estado, numero:payload.numero, serie:payload.serie, sent_at:nowISO() }});
+    toast('Factura registrada en Veri*Factu ✓','ok');
+    viewInvoice(id);
+  }catch(e){ toast('Veri*Factu: '+(e&&e.message||e),'err'); }
+}
 function viewInvoice(id){
   const i=Invoices.get(id); const p=Patients.get(i.patient_id); const c=Config.get();
   const showPat=(i.show_patient!==undefined)?!!i.show_patient:(!!p && !isCompany(p));
+  const vfOn=!!c.verifactu_enabled; const vr=i.verifactu;
+  const vfQr=(vr&&vr.qr)?(String(vr.qr).startsWith('data:')?vr.qr:'data:image/png;base64,'+vr.qr):'';
   const sig=signatureImg();
   const lines=(i.lines&&i.lines.length)?i.lines:[{date:i.date,desc:i.concept||'Sesión',price:i.price,uds:i.qty||1}];
   const honorarios=lines.reduce((s,l)=>s+invLineTotal(l),0);
@@ -1812,11 +1845,16 @@ function viewInvoice(id){
       ${sig?`<img src="${sig}" alt="firma" style="height:62px;margin:2px 0 0 6px">`:''}
       <div style="font-size:12px;color:#555">${esc(c.pro_name||'')}${c.pro_lic?' · Col. '+esc(c.pro_lic):''}</div>
       ${exenta?`<div style="text-align:center;color:#666;font-size:11px;margin-top:20px;border-top:1px solid #ddd;padding-top:8px">${esc(c.iva_exencion||'Factura exenta de IVA según art. 20.1 de la Ley 37/1992')}${retencion?' · Operación sujeta a retención de IRPF del '+retPct+'%':''}</div>`:''}
+      ${vfQr?`<div style="margin-top:18px;border-top:1px solid #ddd;padding-top:10px;display:flex;align-items:center;gap:14px">
+        <img src="${vfQr}" alt="QR Veri*Factu" style="width:104px;height:104px">
+        <div style="font-size:11px;color:#555;line-height:1.5"><b style="color:${NAVY}">VERI*FACTU</b><br>Factura verificable en la sede electrónica de la AEAT.${vr.estado?'<br>Estado: <b>'+esc(vr.estado)+'</b>':''}</div>
+      </div>`:''}
     </div>`,
-    foot:`<button class="btn" data-close>Cerrar</button><button class="btn primary" data-send>📤 Enviar</button><button class="btn" data-pdf>⬇ PDF</button>`,
+    foot:`<button class="btn" data-close>Cerrar</button>${(vfOn && !(vr&&vr.uuid))?'<button class="btn" data-vf>🔐 Registrar Veri*Factu</button>':''}<button class="btn primary" data-send>📤 Enviar</button><button class="btn" data-pdf>⬇ PDF</button>`,
     onMount:(bg)=>{
       $('[data-pdf]',bg).onclick=()=>downloadPDF($('#inv-print',bg).innerHTML,(i.kind==='abono'?'Factura rectificativa ':'Factura ')+i.number);
       $('[data-send]',bg).onclick=()=>sendInvoiceModal(i.id);
+      const vb=$('[data-vf]',bg); if(vb) vb.onclick=()=>verifactuSend(i.id);
     }
   });
 }
