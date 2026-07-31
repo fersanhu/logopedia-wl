@@ -1872,6 +1872,7 @@ function viewInvoice(id){
       $('[data-pdf]',bg).onclick=()=>downloadPDF($('#inv-print',bg).innerHTML,(i.kind==='abono'?'Factura rectificativa ':'Factura ')+i.number);
       $('[data-send]',bg).onclick=()=>sendInvoiceModal(i.id);
       const vb=$('[data-vf]',bg); if(vb) vb.onclick=()=>verifactuSend(i.id);
+      if(vr && vr.uuid && /pend/i.test(String(vr.estado||''))){ setTimeout(async()=>{ try{ if(!sb) return; const {data}=await sb.functions.invoke('verifactu',{body:{action:'status',payload:{uuid:vr.uuid}}}); if(data&&data.estado&&data.estado!==vr.estado){ const cur=Invoices.get(i.id); if(cur&&cur.verifactu) Invoices.update(i.id,{verifactu:{...cur.verifactu,estado:data.estado}}); viewInvoice(i.id); } }catch(e){} }, 1200); }
     }
   });
 }
